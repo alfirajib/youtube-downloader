@@ -101,7 +101,7 @@ def get_video_info():
 @app.route('/api/download', methods=['POST'])
 def download_video():
     """Download video atau audio"""
-    time.sleep(2)
+    download_id = None
     try:
         data = request.json
         url = data.get('url', '').strip()
@@ -133,6 +133,7 @@ def download_video():
             'progress_hooks': [progress_hook],
         })
         
+        # Tentukan format dan file extension
         if format_type == 'mp3':
             ydl_opts['format'] = 'bestaudio/best'
             ydl_opts['postprocessors'] = [{
@@ -142,21 +143,30 @@ def download_video():
             }]
             file_ext = 'mp3'
         else:  # mp4
-            # Gunakan format yang lebih sederhana untuk menghindari 403
             ydl_opts['format'] = 'best[height<=720]/best'
             file_ext = 'mp4'
-        return jsonify({
-            'download_id': download_id,
-            'filename': filename,
-            'title': info.get('title', 'Unknown')
-        })
+        
+        # Download
+        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+            info = ydl.extract_info(url, download=True)
+            filename = f"{download_id}.{file_ext}"
+            
+            download_status[download_id]['status'] = 'completed'
+            download_status[download_id]['filename'] = filename
+            
+            return jsonify({
+                'download_id': download_id,
+                'filename': filename,
+                'title': info.get('title', 'Unknown')
+            })
     
     except Exception as e:
-        if download_id in download_status:
+        error_msg = str(e)
+        if download_id and download_id in download_status:
             download_status[download_id]['status'] = 'error'
-            download_status[download_id]['error'] = str(e)
-        return jsonify({'error': str(e)}), 400
-
+            download_status[download_id]['error'] = error_msg
+        return jsonify({'error': error_msg}), 400
+    
 @app.route('/api/progress/<download_id>')
 def get_progress(download_id):
     """Cek progress download"""

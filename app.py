@@ -33,6 +33,27 @@ def cleanup_old_files():
 cleanup_thread = Thread(target=cleanup_old_files, daemon=True)
 cleanup_thread.start()
 
+# Base yt-dlp options untuk bypass bot detection
+def get_base_ydl_opts():
+    return {
+        'quiet': True,
+        'no_warnings': True,
+        'extract_flat': False,
+        'user_agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+        'extractor_args': {
+            'youtube': {
+                'player_client': ['android', 'web'],
+                'player_skip': ['webpage', 'configs']
+            }
+        },
+        'http_headers': {
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+            'Accept-Language': 'en-us,en;q=0.5',
+            'Sec-Fetch-Mode': 'navigate',
+        }
+    }
+
 @app.route('/')
 def index():
     return render_template('index.html')
@@ -47,11 +68,7 @@ def get_video_info():
         if not url:
             return jsonify({'error': 'URL tidak boleh kosong'}), 400
         
-        ydl_opts = {
-            'quiet': True,
-            'no_warnings': True,
-            'extract_flat': False,
-        }
+        ydl_opts = get_base_ydl_opts()
         
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
             info = ydl.extract_info(url, download=False)
@@ -72,7 +89,7 @@ def download_video():
     try:
         data = request.json
         url = data.get('url', '').strip()
-        format_type = data.get('format', 'mp4')  # mp4 atau mp3
+        format_type = data.get('format', 'mp4')
         
         if not url:
             return jsonify({'error': 'URL tidak boleh kosong'}), 400
@@ -93,13 +110,12 @@ def download_video():
                 download_status[download_id]['status'] = 'completed'
                 download_status[download_id]['progress'] = 100
         
-        # Konfigurasi yt-dlp
-        ydl_opts = {
+        # Konfigurasi yt-dlp dengan anti-bot measures
+        ydl_opts = get_base_ydl_opts()
+        ydl_opts.update({
             'outtmpl': os.path.join(DOWNLOAD_FOLDER, f'{download_id}.%(ext)s'),
             'progress_hooks': [progress_hook],
-            'quiet': True,
-            'no_warnings': True,
-        }
+        })
         
         if format_type == 'mp3':
             ydl_opts['format'] = 'bestaudio/best'
@@ -110,7 +126,7 @@ def download_video():
             }]
             file_ext = 'mp3'
         else:  # mp4
-            ydl_opts['format'] = 'bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best'
+            ydl_opts['format'] = 'bestvideo[ext=mp4][height<=720]+bestaudio[ext=m4a]/best[ext=mp4][height<=720]/best[height<=720]'
             ydl_opts['merge_output_format'] = 'mp4'
             file_ext = 'mp4'
         

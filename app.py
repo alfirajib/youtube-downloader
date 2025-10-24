@@ -101,6 +101,7 @@ def get_video_info():
 @app.route('/api/download', methods=['POST'])
 def download_video():
     """Download video atau audio"""
+    time.sleep(2)
     try:
         data = request.json
         url = data.get('url', '').strip()
